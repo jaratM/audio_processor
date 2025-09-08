@@ -1,0 +1,111 @@
+# Optimized Audio Processor Configuration for Large-Scale Processing
+
+# Parallel Processing Settings
+max_workers: 32                    # Maximum number of worker threads
+io_workers: 32                     # I/O worker threads for file operations
+gpu_workers: 1                     # GPU workers (keep at 1 to avoid conflicts)
+
+# Memory Management
+max_memory_gb: 500.0               # Maximum memory usage in GB
+chunk_cache_size: 1000            # Number of chunks to cache
+enable_memory_mapping: true       # Use memory mapping for large files
+enable_compression: true          # Enable output compression
+
+# Batching Optimization
+file_batch_size: 8               # Number of files per batch (increased from 8)
+chunk_batch_size: 16             # Number of chunks per GPU batch
+max_chunk_duration: 25            # Maximum chunk duration in seconds
+chunk_duration_sec: 25            # Duration of audio chunks in seconds
+overlap_sec: 1                    # Overlap between chunks
+
+# GPU Settings
+gpu_memory_fraction: 0.9          # Use 90% of available GPU memory
+enable_mixed_precision: true      # Enable mixed precision for faster inference
+enable_gradient_checkpointing: false  # Disable for inference
+
+
+# I/O Optimization
+prefetch_factor: 3                # Number of batches to prefetch
+temp_dir: "/tmp/audio_processing" # Temporary directory for processing
+enable_compression: true          # Enable output compression
+
+# File Paths
+# input_folder: "./input"
+output_folder: "./output" 
+failed_folder: "./failed"
+logs_folder: "./logs"
+
+# Model Paths
+transcription_model: 'path/to/model'
+vad_model_id: "pyannote/voice-activity-detection"
+vad_device: "cpu"
+vad_max_segment_sec: 25.0
+vad_window_overlap_sec: 0.5
+
+vad_gap_threshold: 0.8
+vad_padding: 0.5
+
+# Audio Settings
+target_sample_rate: 16000
+max_audio_length: 1800            # Maximum audio length in seconds (30 minutes)
+
+# Output Settings
+output_format: "csv"
+enable_progress_tracking: true
+save_intermediate_results: true   # Save results after each batch
+save_sentiment_analysis: true   # Save sentiment analysis results after each batch
+save_csv_results: True           # Set to true if you want CSV output (database is primary)
+
+# Idempotence and retention
+retention_days: 30               # Delete temp/intermediate/markers older than N days
+delete_processed_files: true    # If true, delete input audio after retention period once processed
+
+# Tuning features
+max_auto_batch_size: 64          # Max auto-tuned batch size cap
+enable_length_bucketing: true    # Sort chunks by length to reduce padding
+
+# Performance Monitoring
+enable_performance_monitoring: true
+log_memory_usage: true
+log_processing_times: true
+performance_metrics_interval: 100 # Log metrics every N files
+
+# Error Handling
+max_retries: 3                    # Maximum retries for failed files
+timeout_seconds: 300              # Timeout for file processing
+continue_on_error: true           # Continue processing if individual files fail
+
+# Resource Limits
+max_concurrent_files: 64          # Maximum files processed concurrently
+max_concurrent_chunks: 1000        # Maximum chunks processed concurrently
+memory_threshold_percent: 80      # Memory usage threshold before cleanup 
+
+client_text_model_path: 'path/to/model'
+client_acoustic_model_path : 'path/to/model'
+client_acoustic_scaler_path : 'path/to/model'
+
+agent_text_model_path: 'path/to/model'
+agent_acoustic_model_path : 'path/to/model'
+agent_acoustic_scaler_path : 'path/to/model'
+
+# Database Configuration
+database_type: "postgresql"       # Using PostgreSQL only
+db_host: "localhost"
+db_port: 55432
+db_name: "audio_processing"
+db_user: "postgres"
+db_password: ""
+
+# Business Configuration
+partenaire: "INWI"
+login_conseiller: "system"
+
+bedrock_region: "us-west-2"
+summary_model_id: "anthropic.claude-3-5-sonnet-20240620-v1:0"
+class_model_id: "anthropic.claude-3-5-sonnet-20240620-v1:0"
+max_tokens_summary: 300
+max_tokens_class: 3
+temperature: 0.0
+business_type: "B2C"
+topics_glossary_b2c: "./glossaire B2C.xlsx"
+topics_glossary_b2b: "./glossaire B2B.xlsx"
