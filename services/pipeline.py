@@ -24,10 +24,10 @@ import psutil
 import time
 import json
 
-from utils import check_gpu_availability, get_system_stats
-from audio_processor import AudioProcessor
-from sentiment_analysis import SentimentAnalyzer
-# from topics_inf import TopicClassifier
+from utils.utils import check_gpu_availability, get_system_stats
+from services.audio_processor import AudioProcessor
+from services.sentiment_analysis import SentimentAnalyzer
+# from services.topics_inf import TopicClassifier
 
 class MemoryManager:
     """Manages memory usage and prevents OOM errors"""

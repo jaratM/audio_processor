@@ -28,6 +28,8 @@ graph TB
     D --> G[Text Sentiment Models]
     D --> H[Acoustic Sentiment Models]
     D --> I[Late Fusion Analysis]
+    G --> I
+    H --> I
     B --> J[database_manager.py - PostgreSQL]
     B --> K[performance_monitor.py - Metrics]
     L[config.yaml] --> A
@@ -291,4 +293,9 @@ client_acoustic_sentiment,client_acoustic_confidence,client_acoustic_probabiliti
 agent_fusion_sentiment,agent_fusion_confidence,
 client_fusion_sentiment,client_fusion_confidence,
 error,topics
+
+##  License
+
+Proprietary - All rights reserved.
+
 

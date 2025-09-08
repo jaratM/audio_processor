@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 import time
 import json
 from collections import Counter
-from topics_inf import TopicClassifier
+from services.topics_inf import TopicClassifier
 
 class SentimentAnalyzer:
     """Main sentiment analyzer that coordinates text, acoustic, and fusion analysis"""

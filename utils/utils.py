@@ -2,12 +2,9 @@
 Utility functions for audio processing
 """
 
-import os
 import psutil
 import torch
-from pathlib import Path
 from typing import Optional, Tuple
-import torchaudio
 
 def check_gpu_availability() -> Tuple[bool, str]:
     """Check GPU availability and return status"""

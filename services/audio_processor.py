@@ -11,8 +11,8 @@ from concurrent.futures import ThreadPoolExecutor
 import gc
 import time
 from functools import lru_cache
-from utils import remove_special_characters
-from speech_segment import SpeechBatchTranscriber
+from utils.utils import remove_special_characters
+from services.speech_segment import SpeechBatchTranscriber
 
 class AudioProcessor:
     """Optimized audio processor for large-scale processing"""

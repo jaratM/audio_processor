@@ -17,9 +17,9 @@ warnings.filterwarnings("ignore")
 # Add current directory to path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from pipeline import DataProcessor
-from performance_monitor import PerformanceMonitor
-from database_manager import DatabaseManager
+from services.pipeline import DataProcessor
+from services.performance_monitor import PerformanceMonitor
+from services.database_manager import DatabaseManager
 
 
 def setup_logging(log_level: str = "INFO"):
