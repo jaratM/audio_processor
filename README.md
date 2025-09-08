@@ -1,8 +1,8 @@
-# Audio Processor v1 - Comprehensive Analysis & Documentation
+# Audio Processor- Comprehensive Analysis & Documentation
 
 ## Project Overview
 
-**Audio Processor** is a production-ready pipeline for large-scale audio processing designed for telecommunications companies. It provides end-to-end processing of customer service calls with:
+**Audio Processor** is a production-ready pipeline for large-scale audio processing It provides end-to-end processing of customer service calls with:
 
 - **Speech-to-Text Transcription** using Wav2Vec2Bert models fine-tuned for Darija (Moroccan Arabic)
 - **Multi-modal Sentiment Analysis** (Text + Acoustic features with late fusion)
