@@ -345,10 +345,10 @@ class AudioProcessor:
                 self.logger.error(f"Error processing file {file}: {e}")
                 self.failed_files.append({'filename': file.name, 'path': str(file), 'error': str(e), 'chunks': []})
 
-        if all_agent_waveforms:
-            for id_enregistrement, agent_waveform, client_waveform in zip(all_id_enregistrements, all_agent_waveforms, all_client_waveforms):
-                self._save_messages_to_database(id_enregistrement, agent_waveform, client_waveform)
-                del agent_waveform, client_waveform
+        # if all_agent_waveforms:
+        #     for id_enregistrement, agent_waveform, client_waveform in zip(all_id_enregistrements, all_agent_waveforms, all_client_waveforms):
+        #         self._save_messages_to_database(id_enregistrement, agent_waveform, client_waveform)
+        #         del agent_waveform, client_waveform
         # Transcribe all chunks
         if all_chunks:
             results = self.transcribe_batch(all_chunks)
