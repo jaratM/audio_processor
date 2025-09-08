@@ -27,7 +27,6 @@ graph TB
     C --> F[speech_segment.py - VAD & Transcription]
     D --> G[Text Sentiment Models]
     D --> H[Acoustic Sentiment Models]
-    D --> I[Late Fusion Analysis]
     G --> I
     H --> I
     B --> J[database_manager.py - PostgreSQL]
