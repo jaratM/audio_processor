@@ -6,14 +6,161 @@ import torch
 import torchaudio
 import tempfile
 from typing import List, Dict, Any, Tuple
-from transformers import Wav2Vec2BertForCTC, Wav2Vec2BertProcessor
 import numpy as np
-from utils import remove_special_characters
+from utils.utils import remove_special_characters
+import pandas as pd
+from rapidfuzz import process, fuzz
+import re
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+
+class DarijaFrenchConverter:
+    """Handles Darija to French text conversion and number replacement"""
+    
+    def __init__(self, config: dict):
+        self.config = config
+        self.mapping: Dict[str, str] = {}
+        self.sorted_keys: List[str] = []
+        self.word_to_number: Dict[str, int] = {}
+        self.reference_words: List[str] = []
+        self._load_dictionary()
+        self._load_number_dictionary()
+        
+    def _load_dictionary(self):
+        """Load Darija to French conversion dictionary"""
+        try:
+            df = pd.read_excel(self.config.get('darija_french_dict'))
+            
+            # First column contains French words
+            french_words = df.iloc[:, 0]
+            
+            # Other columns contain Darija variants
+            for col in df.columns[1:]:
+                for french, darija in zip(french_words, df[col]):
+                    if pd.notna(darija):
+                        self.mapping[darija.strip()] = french.strip()
+                        
+            # Sort keys by length (longest first) for better matching
+            self.sorted_keys = sorted(self.mapping.keys(), key=len, reverse=True)
+            
+            logger.info(f"Loaded Darija dictionary with {len(self.mapping)} entries")
+            
+        except Exception as e:
+            logger.error(f"Error loading Darija dictionary: {e}")
+    
+    def _load_number_dictionary(self):
+        """Load Darija number conversion dictionary"""
+        try:
+            df = pd.read_excel(self.config.get('darija_numbers_dict'))
+            
+            # Build mapping: darija expression → number
+            for _, row in df.iterrows():
+                number = row["Nombre"]
+                for word in row[1:].dropna():
+                    word = str(word).strip()
+                    if word:
+                        self.word_to_number[word] = number
+            
+            self.reference_words = list(self.word_to_number.keys())
+            logger.info(f"Loaded Darija number dictionary with {len(self.word_to_number)} entries")
+            
+        except Exception as e:
+            logger.error(f"Error loading Darija number dictionary: {e}")
+    
+    def _fuzzy_map_darija_number(self, chunk: str, threshold: int = 90) -> Tuple[Optional[int], Optional[str], float]:
+        """
+        Fuzzy match a chunk to a Darija number with improved matching
+        
+        Args:
+            chunk: Text chunk to match
+            threshold: Minimum similarity score
+            
+        Returns:
+            Tuple of (number, matched_word, score)
+        """
+        if not self.reference_words:
+            return None, None, 0.0
+            
+        match, score, _ = process.extractOne(chunk, self.reference_words, scorer=fuzz.ratio)
+        if score >= threshold:
+            return self.word_to_number[match], match, score
+        return None, None, score
+    
+    def _replace_numbers_in_sentence(self, sentence: str, base_threshold: int = 90, max_ngram: int = 5) -> str:
+        """
+        Replace Darija number expressions with numeric values using adaptive threshold
+        
+        Args:
+            sentence: Input sentence
+            base_threshold: Base minimum similarity score for fuzzy matching
+            max_ngram: Maximum n-gram size to consider
+            
+        Returns:
+            Sentence with numbers replaced
+        """
+        if not self.word_to_number:
+            return sentence
+            
+        words = sentence.strip().split()
+        replaced = [None] * len(words)
+        used_positions = set()
+
+        for n in range(max_ngram, 0, -1):  # From longest to shortest
+            for i in range(len(words) - n + 1):
+                positions = set(range(i, i + n))
+                if positions & used_positions:
+                    continue
+
+                chunk = " ".join(words[i:i + n])
+
+                # Adapt threshold to tolerate differences on long chunks
+                threshold = base_threshold - (max(n - 2, 0) * 3)
+                number, match, score = self._fuzzy_map_darija_number(chunk, threshold)
+
+                if number is not None:
+                    replaced[i] = str(int(number))
+                    for j in range(i + 1, i + n):
+                        replaced[j] = ""
+                    used_positions.update(positions)
+
+        # Final reconstruction
+        final = [
+            rep if rep is not None else word
+            for word, rep in zip(words, replaced)
+            if rep != ""
+        ]
+        return " ".join(final)
+            
+    def convert_text(self, text: str) -> str:
+        """
+        Convert embedded Darija words to French and replace numbers
+        
+        Args:
+            text: Input text with Darija words and numbers
+            
+        Returns:
+            Text with Darija words converted to French and numbers replaced
+        """
+        # First replace numbers
+        text = self._replace_numbers_in_sentence(text)
+        
+        # Then convert Darija words to French
+        if not self.mapping:
+            return text
+            
+        for darija_variant in self.sorted_keys:
+            pattern = re.compile(rf"\b{re.escape(darija_variant)}\b", flags=re.IGNORECASE)
+            text = pattern.sub(f" {self.mapping[darija_variant]} ", text)
+            
+        # Clean up extra spaces
+        return ' '.join(text.split())
+
+
 class SpeechSegment:
     def __init__(self, config: dict):
+        self.converter = DarijaFrenchConverter(config)
         self.config = config
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.vad_pipeline = self._load_vad_pipeline()
@@ -267,7 +414,6 @@ class SpeechSegment:
 class SpeechBatchTranscriber:
     def __init__(self, config: dict):
         self.segmenter = SpeechSegment(config)
-        self.config = config
 
     def transcribe_mono(self, waveform: torch.Tensor, sample_rate: int, speaker_label: str = "unknown") -> List[Dict[str, Any]]:
         segments = self.segmenter.get_speech_segments(waveform, sample_rate, speaker_label)

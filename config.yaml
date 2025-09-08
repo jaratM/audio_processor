@@ -36,7 +36,15 @@ failed_folder: "./failed"
 logs_folder: "./logs"
 
 # Model Paths
-transcription_model: 'path/to/model'
+transcription_model: "./models/transcription/w2v-bert-darija-finetuned-clean"
+client_text_model_path: "./models/client/text/best_model" 
+client_acoustic_model_path : "./models/client/acoustic/svm_acoustic_model.joblib"
+client_acoustic_scaler_path : "./models/client/acoustic/acoustic_scaler.joblib"
+
+agent_text_model_path: "./models/agent/text/best_model"
+agent_acoustic_model_path : "./models/agent/acoustic/randomforest_acoustic_model.joblib"
+agent_acoustic_scaler_path : "./models/agent/acoustic/acoustic_scaler.joblib"
+
 vad_model_id: "pyannote/voice-activity-detection"
 vad_device: "cpu"
 vad_max_segment_sec: 25.0
@@ -80,13 +88,7 @@ max_concurrent_files: 64          # Maximum files processed concurrently
 max_concurrent_chunks: 1000        # Maximum chunks processed concurrently
 memory_threshold_percent: 80      # Memory usage threshold before cleanup 
 
-client_text_model_path: 'path/to/model'
-client_acoustic_model_path : 'path/to/model'
-client_acoustic_scaler_path : 'path/to/model'
 
-agent_text_model_path: 'path/to/model'
-agent_acoustic_model_path : 'path/to/model'
-agent_acoustic_scaler_path : 'path/to/model'
 
 # Database Configuration
 database_type: "postgresql"       # Using PostgreSQL only
@@ -106,6 +108,10 @@ class_model_id: "anthropic.claude-3-5-sonnet-20240620-v1:0"
 max_tokens_summary: 300
 max_tokens_class: 3
 temperature: 0.0
+
+# Business Configuration for Topics, Darija French Conversion and Darija Numbers Conversion
 business_type: "B2C"
 topics_glossary_b2c: "./glossaire B2C.xlsx"
 topics_glossary_b2b: "./glossaire B2B.xlsx"
+darija_french_dict: "./utils/darija_french_conversion.xlsx"
+darija_numbers_dict: "./utils/darija_numbers.xlsx"
