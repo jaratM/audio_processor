@@ -28,7 +28,7 @@ graph TB
     D --> G[Text Sentiment Models]
     D --> H[Acoustic Sentiment Models]
     G --> I[Late Fusion Analysis]
-    H --> I
+    H --> I[Late Fusion Analysis]
     B --> J[database_manager.py - PostgreSQL]
     B --> K[performance_monitor.py - Metrics]
     L[config.yaml] --> A
