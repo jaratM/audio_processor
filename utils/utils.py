@@ -6,14 +6,17 @@ import psutil
 import torch
 from typing import Optional, Tuple
 
-def check_gpu_availability() -> Tuple[bool, str]:
+def check_gpu_availability(gpu_index: int = 0) -> Tuple[bool, str]:
     """Check GPU availability and return status"""
     if torch.cuda.is_available():
         gpu_count = torch.cuda.device_count()
-        gpu_name = torch.cuda.get_device_name(0)
-        gpu_memory = torch.cuda.get_device_properties(0).total_memory / (1024**3)  # GB
+        if gpu_index >= gpu_count:
+            return False, f"GPU index {gpu_index} not available (only {gpu_count} GPUs found)"
         
-        return True, f"GPU: {gpu_name} ({gpu_memory:.1f}GB)"
+        gpu_name = torch.cuda.get_device_name(gpu_index)
+        gpu_memory = torch.cuda.get_device_properties(gpu_index).total_memory / (1024**3)  # GB
+        
+        return True, f"GPU {gpu_index}: {gpu_name} ({gpu_memory:.1f}GB)"
     else:
         return False, "No GPU available - using CPU"
 

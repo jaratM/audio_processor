@@ -659,7 +659,7 @@ class DataProcessor:
         self.logger.info("Starting optimized audio processing")
         
         # Check system requirements
-        gpu_status, gpu_info = check_gpu_availability()
+        gpu_status, gpu_info = check_gpu_availability(self.config.get('gpu_index', 0))
         self.logger.info(f"GPU Status: {gpu_status}")
         self.logger.info(f"GPU Info: {gpu_info}")
         self.logger.info(f"System Stats: {get_system_stats()}")

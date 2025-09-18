@@ -4,6 +4,7 @@
 max_workers: 32                    # Maximum number of worker threads
 io_workers: 32                     # I/O worker threads for file operations
 gpu_workers: 1                     # GPU workers (keep at 1 to avoid conflicts)
+gpu_index: 1                       # GPU index to use
 
 # Memory Management
 max_memory_gb: 500.0               # Maximum memory usage in GB

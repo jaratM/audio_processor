@@ -78,7 +78,7 @@ def validate_config(config: dict) -> bool:
     return True
 
 
-def print_system_info():
+def print_system_info(config: dict):
     """Print system information"""
     import psutil
     import torch
@@ -100,7 +100,7 @@ def print_system_info():
     
     if torch.cuda.is_available():
         print(f"GPU Count: {torch.cuda.device_count()}")
-        print(f"GPU Name: {torch.cuda.get_device_name(0)}")
+        print(f"GPU Name: {torch.cuda.get_device_name(config['gpu_index'])}")
         print(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / (1024**3):.1f} GB")
     
     print("="*60)
@@ -136,7 +136,7 @@ def main():
     config['save_csv_results'] = (args.save_mode == 'csv')
     
     # Print system information
-    print_system_info()
+    print_system_info(config)
     performance_monitor = None
     db_manager = None
     try:

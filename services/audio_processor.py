@@ -21,7 +21,13 @@ class AudioProcessor:
         self.config = config
         self.logger = logging.getLogger(__name__)
         self.logger.info("OptimizedAudioProcessor initialized")
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        if torch.cuda.is_available():
+            gpu_index = config.get('gpu_index', 0)
+            self.device = torch.device(f"cuda:{gpu_index}")
+            torch.cuda.set_device(self.device)
+        else:
+            self.device = torch.device("cpu")
+
         
         # Database manager (optional)
         self.db_manager = db_manager

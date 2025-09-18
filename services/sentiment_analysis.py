@@ -16,7 +16,12 @@ class SentimentAnalyzer:
     
     def __init__(self, config: dict):
         self.config = config
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        if torch.cuda.is_available():
+            gpu_index = config.get('gpu_index', 0)
+            self.device = torch.device(f"cuda:{gpu_index}")
+            torch.cuda.set_device(self.device)
+        else:
+            self.device = torch.device("cpu")
         self.logger = logging.getLogger(__name__)
         self.load_models()
         self.topic_classifier = TopicClassifier(config, business_type=config.get('business_type', 'B2C'))
@@ -513,7 +518,12 @@ class AcousticSentimentAnalyzer:
     
     def __init__(self, config: dict):
         self.config = config
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        if torch.cuda.is_available():
+            gpu_index = config.get('gpu_index', 0)
+            self.device = torch.device(f"cuda:{gpu_index}")
+            torch.cuda.set_device(self.device)
+        else:
+            self.device = torch.device("cpu")
         self.logger = logging.getLogger(__name__)
         
         # Model paths
@@ -893,7 +903,12 @@ class TextSentimentAnalyzer:
     
     def __init__(self, config: dict):
         self.config = config
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        if torch.cuda.is_available():
+            gpu_index = config.get('gpu_index', 0)
+            self.device = torch.device(f"cuda:{gpu_index}")
+            torch.cuda.set_device(self.device)
+        else:
+            self.device = torch.device("cpu")
         self.logger = logging.getLogger(__name__)
         
         # Model paths
@@ -1123,7 +1138,12 @@ class LateFusionSentimentAnalyzer:
     
     def __init__(self, config: dict):
         self.config = config
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        if torch.cuda.is_available():
+            gpu_index = config.get('gpu_index', 0)
+            self.device = torch.device(f"cuda:{gpu_index}")
+            torch.cuda.set_device(self.device)
+        else:
+            self.device = torch.device("cpu")
         self.logger = logging.getLogger(__name__)
         self.load_models()
         

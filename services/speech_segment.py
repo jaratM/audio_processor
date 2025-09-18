@@ -162,7 +162,13 @@ class SpeechSegment:
     def __init__(self, config: dict):
         self.converter = DarijaFrenchConverter(config)
         self.config = config
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        if torch.cuda.is_available():
+            gpu_index = config.get('gpu_index', 0)
+            self.device = torch.device(f"cuda:{gpu_index}")
+            torch.cuda.set_device(self.device)
+        else:
+            self.device = torch.device("cpu")
+
         self.vad_pipeline = self._load_vad_pipeline()
         self.transcription_model, self.processor = None, None
         
