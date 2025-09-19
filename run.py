@@ -20,6 +20,12 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from services.pipeline import DataProcessor
 from services.performance_monitor import PerformanceMonitor
 from services.database_manager import DatabaseManager
+import importlib.util
+
+# Import minio-access module
+spec = importlib.util.spec_from_file_location("minio_access", "utils/minio-access.py")
+minio_access = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(minio_access)
 
 
 def setup_logging(log_level: str = "INFO"):
@@ -78,6 +84,46 @@ def validate_config(config: dict) -> bool:
     return True
 
 
+def sync_minio_data(config: dict, logger, skip_sync=False):
+    """Synchronize data from MinIO if enabled"""
+    if skip_sync:
+        logger.info("MinIO sync skipped via command line argument")
+        return
+    
+    minio_config = config.get('minio', {})
+    
+    if not minio_config.get('enabled', False):
+        logger.info("MinIO sync is disabled in configuration")
+        return
+    
+    
+    try:
+        logger.info("Starting MinIO synchronization...")
+        
+        # Get input folder from main config
+        local_folder = config.get('input_folder', './input')
+        
+        # Create MinIO sync manager instance
+        minio_manager = minio_access.MinIOSyncManager(config=config)
+        
+        # Perform sync
+        stats = minio_manager.sync_to_local(local_folder_path=local_folder)
+        
+        logger.info(f"MinIO sync completed: {stats['downloaded']} downloaded, "
+                   f"{stats['skipped']} skipped, {stats['errors']} errors")
+        
+        if stats['errors'] > 0:
+            logger.warning(f"MinIO sync completed with {stats['errors']} errors")
+        
+    except ValueError as e:
+        logger.error(f"MinIO configuration error: {e}")
+        logger.warning("Please check your environment variables (MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY)")
+        logger.warning("Continuing with local files only...")
+    except Exception as e:
+        logger.error(f"MinIO synchronization failed: {e}")
+        logger.warning("Continuing with local files only...")
+
+
 def print_system_info(config: dict):
     """Print system information"""
     import psutil
@@ -120,6 +166,8 @@ def main():
                        help="Generate detailed performance report")
     parser.add_argument("--save-mode", default="database", choices=["database", "csv"],
                        help="Where to save results: 'database' (default) or 'csv'")
+    parser.add_argument("--no-minio-sync", action="store_true",
+                       help="Skip MinIO synchronization even if enabled in config")
     
     args = parser.parse_args()
     
@@ -134,6 +182,9 @@ def main():
     
     # Add database configuration and saving mode
     config['save_csv_results'] = (args.save_mode == 'csv')
+    
+    # Sync data from MinIO if enabled
+    sync_minio_data(config, logger, skip_sync=args.no_minio_sync)
     
     # Print system information
     print_system_info(config)

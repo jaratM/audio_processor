@@ -31,7 +31,7 @@ temp_dir: "/tmp/audio_processing" # Temporary directory for processing
 enable_compression: true          # Enable output compression
 
 # File Paths
-# input_folder: "./input"
+input_folder: "./input"
 output_folder: "./output" 
 failed_folder: "./failed"
 logs_folder: "./logs"
@@ -116,3 +116,10 @@ topics_glossary_b2c: "./glossaire B2C.xlsx"
 topics_glossary_b2b: "./glossaire B2B.xlsx"
 darija_french_dict: "./utils/darija_french_conversion.xlsx"
 darija_numbers_dict: "./utils/darija_numbers.xlsx"
+
+minio:
+  endpoint: "your_endpoint"       # MinIO endpoint
+  enabled: true                           # Set to true to enable MinIO sync
+  bucket_name: "your_bucket_name"              # Bucket name
+  folder_prefix: "input"           # Folder prefix in MinIO
+  secure: true     
