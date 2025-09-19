@@ -3,6 +3,10 @@ import argparse
 import sys
 from minio import Minio
 from minio.error import S3Error
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 def upload_folder_to_minio(
     endpoint,
