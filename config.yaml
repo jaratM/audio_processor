@@ -1,10 +1,10 @@
 # Optimized Audio Processor Configuration for Large-Scale Processing
 
 # Parallel Processing Settings
-max_workers: 32                    # Maximum number of worker threads
+max_workers: 16                    # Maximum number of worker threads
 io_workers: 32                     # I/O worker threads for file operations
 gpu_workers: 1                     # GPU workers (keep at 1 to avoid conflicts)
-gpu_index: 1                       # GPU index to use
+gpu_index: 0                       # GPU index to use
 
 # Memory Management
 max_memory_gb: 500.0               # Maximum memory usage in GB
@@ -13,7 +13,7 @@ enable_memory_mapping: true       # Use memory mapping for large files
 enable_compression: true          # Enable output compression
 
 # Batching Optimization
-file_batch_size: 8               # Number of files per batch (increased from 8)
+file_batch_size: 32               # Number of files per batch (increased from 8)
 chunk_batch_size: 16             # Number of chunks per GPU batch
 max_chunk_duration: 25            # Maximum chunk duration in seconds
 chunk_duration_sec: 25            # Duration of audio chunks in seconds

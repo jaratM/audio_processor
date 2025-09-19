@@ -10,6 +10,8 @@ import time
 import json
 from collections import Counter
 from services.topics_inf import TopicClassifier
+from services.speech_segment import DarijaFrenchConverter
+
 
 class SentimentAnalyzer:
     """Main sentiment analyzer that coordinates text, acoustic, and fusion analysis"""
@@ -25,6 +27,7 @@ class SentimentAnalyzer:
         self.logger = logging.getLogger(__name__)
         self.load_models()
         self.topic_classifier = TopicClassifier(config, business_type=config.get('business_type', 'B2C'))
+        self.converter = DarijaFrenchConverter(config)
         # Parallel processing
         self.executor = ThreadPoolExecutor(max_workers=self.config.get('max_workers', 4))
         
@@ -140,9 +143,9 @@ class SentimentAnalyzer:
                 'agent_text_sentiment': agent_text.get('prediction', ''),
                 'agent_text_confidence': agent_text.get('confidence', 0.0),
                 'agent_text_probabilities': agent_text.get('probabilities', []),
-                'agent_acoustic_sentiment': agent_acoustic.get('prediction', ''),
-                'agent_acoustic_confidence': agent_acoustic.get('confidence', 0.0),
-                'agent_acoustic_probabilities': agent_acoustic.get('probabilities', [])
+                'agent_acoustic_sentiment': agent_acoustic.get('prediction', '') if agent_text.get('prediction', '') != '' else '',
+                'agent_acoustic_confidence': agent_acoustic.get('confidence', 0.0) if agent_text.get('prediction', '') != '' else 0.0,
+                'agent_acoustic_probabilities': agent_acoustic.get('probabilities', []) if agent_text.get('prediction', '') != '' else []
             })
             
             # Client results
@@ -153,9 +156,9 @@ class SentimentAnalyzer:
                 'client_text_sentiment': client_text.get('prediction', ''),
                 'client_text_confidence': client_text.get('confidence', 0.0),
                 'client_text_probabilities': client_text.get('probabilities', []),
-                'client_acoustic_sentiment': client_acoustic.get('prediction', ''),
-                'client_acoustic_confidence': client_acoustic.get('confidence', 0.0),
-                'client_acoustic_probabilities': client_acoustic.get('probabilities', [])
+                'client_acoustic_sentiment': client_acoustic.get('prediction', '') if client_text.get('prediction', '') != '' else '',
+                'client_acoustic_confidence': client_acoustic.get('confidence', 0.0) if client_text.get('prediction', '') != '' else 0.0,
+                'client_acoustic_probabilities': client_acoustic.get('probabilities', []) if client_text.get('prediction', '') != '' else []
             })
             
             # Late fusion for both speakers
@@ -234,7 +237,9 @@ class SentimentAnalyzer:
                     'emotion_client': chunk.get('client_fusion_sentiment', ''),
                     'ton_agent': chunk.get('agent_fusion_sentiment', '')
                 }
-                
+                chunk_data['transcription_chunk'] = self.converter.convert_text(chunk_data['transcription_chunk'])
+                chunk_data['transcription_agent'] = self.converter.convert_text(chunk_data['transcription_agent'])
+                chunk_data['transcription_client'] = self.converter.convert_text(chunk_data['transcription_client'])
                 self.db_manager.insert_chunk(chunk_data)
             
             self.logger.info(f"Saved {len(chunks)} chunks to database")
@@ -903,9 +908,9 @@ class TextSentimentAnalyzer:
     
     def __init__(self, config: dict):
         self.config = config
+        self.device = config.get('gpu_index', 0)
         if torch.cuda.is_available():
-            gpu_index = config.get('gpu_index', 0)
-            self.device = torch.device(f"cuda:{gpu_index}")
+            self.device = torch.device(f"cuda:{self.device}")
             torch.cuda.set_device(self.device)
         else:
             self.device = torch.device("cpu")
@@ -1063,7 +1068,7 @@ class TextSentimentAnalyzer:
             valid_texts = []
             valid_indices = []
             for i, text in enumerate(texts):
-                if text and text.strip():
+                if text and text.strip() and len(text.strip()) >= 15:
                     valid_texts.append(text)
                     valid_indices.append(i)
             

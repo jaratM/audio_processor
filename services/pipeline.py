@@ -27,7 +27,7 @@ import json
 from utils.utils import check_gpu_availability, get_system_stats
 from services.audio_processor import AudioProcessor
 from services.sentiment_analysis import SentimentAnalyzer
-# from services.topics_inf import TopicClassifier
+# from topics_inf import TopicClassifier
 
 class MemoryManager:
     """Manages memory usage and prevents OOM errors"""
@@ -207,16 +207,56 @@ class DataProcessor:
             self.logger.warning(f"Could not initialize sentiment analyzer: {e}")
             self.sentiment_analyzer = None
     
+    def _get_file_size_mb(self, file_path: Path) -> float:
+
+        """Get file size in MB"""
+        try:
+            return file_path.stat().st_size / (1024 * 1024)
+        except Exception as e:
+            self.logger.warning(f"Could not get size for {file_path}: {e}")
+            return 0.0
+
     def create_file_batches(self, files: List[Path]) -> List[List[Path]]:
-        """Create optimized batches of files"""
-        batch_size = self.config.get('file_batch_size', 8)
+        """Create optimized batches of files based on size (under 30MB per batch)"""
+        max_batch_size_mb = self.config.get('max_batch_size_mb', 24.0)
+        max_files_per_batch = self.config.get('file_batch_size', 16)  # Safety limit
+        
         batches = []
+        current_batch = []
+        current_batch_size_mb = 0.0
         
-        for i in range(0, len(files), batch_size):
-            batch = files[i:i + batch_size]
-            batches.append(batch)
+        # Sort files by size (largest first) to optimize batching
+        files_with_sizes = [(f, self._get_file_size_mb(f)) for f in files]
+        files_with_sizes.sort(key=lambda x: x[1], reverse=True)
         
-        self.logger.info(f"Created {len(batches)} file batches (size: {batch_size})")
+        for file_path, file_size_mb in files_with_sizes:
+            # Check if adding this file would exceed size limit
+            if (current_batch_size_mb + file_size_mb > max_batch_size_mb and current_batch) or \
+               len(current_batch) >= max_files_per_batch:
+                # Start a new batch
+                batches.append([f for f, _ in current_batch])
+                current_batch = [(file_path, file_size_mb)]
+                current_batch_size_mb = file_size_mb
+            else:
+                # Add to current batch
+                current_batch.append((file_path, file_size_mb))
+                current_batch_size_mb += file_size_mb
+        
+        # Add the last batch if it has files
+        if current_batch:
+            batches.append([f for f, _ in current_batch])
+        
+        # Log batch statistics
+        total_files = len(files)
+        avg_batch_size = sum(len(batch) for batch in batches) / len(batches) if batches else 0
+        self.logger.info(f"Created {len(batches)} file batches (max size: {max_batch_size_mb}MB)")
+        self.logger.info(f"Average files per batch: {avg_batch_size:.1f}")
+        
+        # Log size distribution
+        for i, batch in enumerate(batches):
+            batch_size_mb = sum(self._get_file_size_mb(f) for f in batch)
+            self.logger.debug(f"Batch {i+1}: {len(batch)} files, {batch_size_mb:.1f}MB")
+        
         return batches
 
     def _is_already_processed(self, file_path: Path) -> bool:
@@ -659,7 +699,7 @@ class DataProcessor:
         self.logger.info("Starting optimized audio processing")
         
         # Check system requirements
-        gpu_status, gpu_info = check_gpu_availability(self.config.get('gpu_index', 0))
+        gpu_status, gpu_info = check_gpu_availability(self.config['gpu_index'])
         self.logger.info(f"GPU Status: {gpu_status}")
         self.logger.info(f"GPU Info: {gpu_info}")
         self.logger.info(f"System Stats: {get_system_stats()}")
