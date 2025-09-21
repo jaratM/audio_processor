@@ -18,6 +18,7 @@ chunk_batch_size: 16             # Number of chunks per GPU batch
 max_chunk_duration: 25            # Maximum chunk duration in seconds
 chunk_duration_sec: 25            # Duration of audio chunks in seconds
 overlap_sec: 1                    # Overlap between chunks
+max_batch_size_mb: 24.0           # Maximum batch size in MB
 
 # GPU Settings
 gpu_memory_fraction: 0.9          # Use 90% of available GPU memory
@@ -35,6 +36,7 @@ input_folder: "./input"
 output_folder: "./output" 
 failed_folder: "./failed"
 logs_folder: "./logs"
+
 
 # Model Paths
 transcription_model: "./models/transcription/w2v-bert-darija-finetuned-clean"
@@ -112,8 +114,8 @@ temperature: 0.0
 
 # Business Configuration for Topics, Darija French Conversion and Darija Numbers Conversion
 business_type: "B2C"
-topics_glossary_b2c: "./glossaire B2C.xlsx"
-topics_glossary_b2b: "./glossaire B2B.xlsx"
+topics_glossary_b2c: "./utils/glossaire B2C.xlsx"
+topics_glossary_b2b: "./utils/glossaire B2B.xlsx"
 darija_french_dict: "./utils/darija_french_conversion.xlsx"
 darija_numbers_dict: "./utils/darija_numbers.xlsx"
 

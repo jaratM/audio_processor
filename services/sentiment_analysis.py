@@ -65,11 +65,7 @@ class SentimentAnalyzer:
     def analyze_batch_sentiment(self, chunks: List[Dict]) -> List[Dict]:
         """Analyze sentiment for a batch of chunks in parallel"""
         if not chunks:
-            return chunks
-        
-        self.logger.info(f"Analyzing sentiment for {len(chunks)} chunks")
-        
-        
+            return chunks        
         # Use true batch processing for larger batches
         try:
             self.logger.debug(f"Using batch processing for {len(chunks)} chunks)")
@@ -87,9 +83,7 @@ class SentimentAnalyzer:
             self.logger.error(f"Error in batch sentiment analysis: {e}")
             # Fallback to individual processing
             return self._fallback_individual_processing(chunks)
-        
-        self.logger.info(f"Sentiment analysis completed for {len(chunks)} chunks")
-        
+                
         # Save chunks to database if database manager is available
         if self.db_manager:
             self._save_chunks_to_database(chunks)
@@ -237,9 +231,10 @@ class SentimentAnalyzer:
                     'emotion_client': chunk.get('client_fusion_sentiment', ''),
                     'ton_agent': chunk.get('agent_fusion_sentiment', '')
                 }
-                chunk_data['transcription_chunk'] = self.converter.convert_text(chunk_data['transcription_chunk'])
-                chunk_data['transcription_agent'] = self.converter.convert_text(chunk_data['transcription_agent'])
-                chunk_data['transcription_client'] = self.converter.convert_text(chunk_data['transcription_client'])
+                # TODO: Uncomment this when the converter is needed
+                # chunk_data['transcription_chunk'] = self.converter.convert_text(chunk_data['transcription_chunk'])
+                # chunk_data['transcription_agent'] = self.converter.convert_text(chunk_data['transcription_agent'])
+                # chunk_data['transcription_client'] = self.converter.convert_text(chunk_data['transcription_client'])
                 self.db_manager.insert_chunk(chunk_data)
             
             self.logger.info(f"Saved {len(chunks)} chunks to database")
@@ -1068,7 +1063,7 @@ class TextSentimentAnalyzer:
             valid_texts = []
             valid_indices = []
             for i, text in enumerate(texts):
-                if text and text.strip() and len(text.strip()) >= 15:
+                if text and text.strip() and len(text.strip()) >= 5:
                     valid_texts.append(text)
                     valid_indices.append(i)
             

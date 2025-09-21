@@ -473,9 +473,10 @@ class DataProcessor:
 
             # Add sentiment analysis if available
             if self.sentiment_analyzer and batch_results:
-                self.logger.info(f"Adding sentiment analysis to {len(batch_results)} chunks")
+                self.logger.info(f"Adding sentiment analysis to {len(batch_results)} chunks of batch {batch_id + 1}")
                 batch_results = self.sentiment_analyzer.analyze_batch_sentiment(batch_results)
-            
+
+            self.logger.info(f"Sentiment analysis completed for {len(batch_results)} chunks of batch {batch_id + 1}")
             if self.config.get('save_sentiment_analysis', False) and batch_results:
                 self._save_chunks_analysis(batch_id, batch_results)
 

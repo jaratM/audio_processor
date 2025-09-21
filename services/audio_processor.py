@@ -351,6 +351,7 @@ class AudioProcessor:
                 self.logger.error(f"Error processing file {file}: {e}")
                 self.failed_files.append({'filename': file.name, 'path': str(file), 'error': str(e), 'chunks': []})
 
+        # TODO: Uncomment this when the messages are needed
         # if all_agent_waveforms:
         #     for id_enregistrement, agent_waveform, client_waveform in zip(all_id_enregistrements, all_agent_waveforms, all_client_waveforms):
         #         self._save_messages_to_database(id_enregistrement, agent_waveform, client_waveform)
