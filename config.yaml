@@ -24,6 +24,22 @@ gpu_memory_fraction: 0.9          # Use 90% of available GPU memory
 enable_mixed_precision: true      # Enable mixed precision for faster inference
 enable_gradient_checkpointing: false  # Disable for inference
 
+# Multi-GPU / MIG Configuration
+enable_mig: true                   # Enable Multi-Instance GPU processing
+mig_instances:
+  transcription:                   # Primary transcription workload
+    device_id: 0                   # MIG instance 0
+    memory_gb: 20                  # 20GB allocated
+    batch_size_multiplier: 2.0     # Increase batch size for larger instance
+  vad:                            # Voice Activity Detection
+    device_id: 1                   # MIG instance 1  
+    memory_gb: 10                  # 10GB allocated
+    batch_size_multiplier: 1.0     # Standard batch size
+  sentiment:                      # Sentiment analysis
+    device_id: 2                   # MIG instance 2
+    memory_gb: 5                   # 5GB allocated
+    batch_size_multiplier: 0.8     # Smaller batch size
+
 
 # I/O Optimization
 prefetch_factor: 3                # Number of batches to prefetch

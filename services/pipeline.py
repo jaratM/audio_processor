@@ -27,6 +27,7 @@ import json
 from utils.utils import check_gpu_availability, get_system_stats
 from services.audio_processor import AudioProcessor
 from services.sentiment_analysis import SentimentAnalyzer
+from services.multi_gpu_processor import ParallelAudioProcessor
 # from topics_inf import TopicClassifier
 
 class MemoryManager:
@@ -196,16 +197,24 @@ class DataProcessor:
         
         # Pass database manager to audio processor if available
         db_manager = getattr(self, 'db_manager', None)
-        self.audio_processor = AudioProcessor(audio_processor_config, db_manager)
-        self.audio_processor.load_models()
         
-        # Initialize sentiment analyzer
-        try:
-            self.sentiment_analyzer = SentimentAnalyzer(audio_processor_config)
-            self.logger.info("Sentiment analyzer initialized successfully")
-        except Exception as e:
-            self.logger.warning(f"Could not initialize sentiment analyzer: {e}")
-            self.sentiment_analyzer = None
+        # Check if MIG is enabled for parallel processing
+        if self.config.get('enable_mig', False):
+            self.logger.info("Initializing Multi-GPU Parallel Audio Processor")
+            self.audio_processor = ParallelAudioProcessor(audio_processor_config, db_manager)
+            self.sentiment_analyzer = None  # Integrated into parallel processor
+        else:
+            self.logger.info("Initializing Single-GPU Audio Processor")
+            self.audio_processor = AudioProcessor(audio_processor_config, db_manager)
+            self.audio_processor.load_models()
+            
+            # Initialize sentiment analyzer
+            try:
+                self.sentiment_analyzer = SentimentAnalyzer(audio_processor_config)
+                self.logger.info("Sentiment analyzer initialized successfully")
+            except Exception as e:
+                self.logger.warning(f"Could not initialize sentiment analyzer: {e}")
+                self.sentiment_analyzer = None
     
     def _get_file_size_mb(self, file_path: Path) -> float:
 
@@ -462,7 +471,13 @@ class DataProcessor:
         self.logger.info(f"Processing batch {batch_id + 1} with {len(files)} files")
         
         try:
-            batch_results = self.audio_processor.process_batch(batch_id, files)
+            # Use appropriate processor based on MIG configuration
+            if hasattr(self.audio_processor, 'process_batch_parallel'):
+                # Multi-GPU parallel processing
+                batch_results = self.audio_processor.process_batch_parallel(batch_id, files)
+            else:
+                # Single-GPU processing
+                batch_results = self.audio_processor.process_batch(batch_id, files)
 
             self.stats['files_processed'] += len(files)
             self.stats['chunks_processed'] += len(batch_results)
