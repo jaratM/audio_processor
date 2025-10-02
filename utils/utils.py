@@ -5,6 +5,11 @@ Utility functions for audio processing
 import psutil
 import torch
 from typing import Optional, Tuple
+import logging
+from services.database_manager import DatabaseManager
+import json
+from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 def check_gpu_availability(gpu_index: int = 0) -> Tuple[bool, str]:
     """Check GPU availability and return status"""
@@ -72,3 +77,59 @@ def remove_special_characters(text):
         return ""
     chars_to_remove_regex = r'[\,\?\.\!\-\;:\"%\'\»\«\؟\(\)،\.]'
     return re.sub(chars_to_remove_regex, '', text.lower())
+
+def load_metadata(db_manager: DatabaseManager, config: dict, logger: logging.Logger):
+    """Load metadata from JSON files"""
+    logger.info("Loading metadata from JSON files")
+
+
+    def process_metadata_file(file_path, db_manager, logger):
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                metadata_json = json.load(f)
+            # Extract id_enregistrement from filename (strip extension)
+            id_enregistrement = Path(file_path).stem
+            # Add business type
+            dest_num = metadata_json.get("DESTINATION_NUMBER")
+            metadata_json["BUSINESS_TYPE"] = db_manager.business_type(dest_num)
+            db_manager.insert_call_metadata(id_enregistrement, metadata_json)
+            return (file_path, True, None)
+        except Exception as e:
+            logger.error(f"Failed to process metadata file {file_path}: {e}")
+            return (file_path, False, str(e))
+
+    # Find all JSON files in the metadata folder
+    config = getattr(db_manager, "config", None)
+    if config and "input_folder" in config:
+        metadata_folder = config["input_folder"]
+    else:
+        # Fallback: try to infer from db_manager or use default
+        metadata_folder = getattr(db_manager, "metadata_folder", "data/metadata")
+
+    metadata_folder = Path(metadata_folder)
+    if not metadata_folder.exists():
+        logger.warning(f"Metadata folder {metadata_folder} does not exist.")
+        return
+
+    json_files = list(metadata_folder.glob("*.json"))
+    if not json_files:
+        logger.info(f"No metadata JSON files found in {metadata_folder}")
+        return
+
+    logger.info(f"Found {len(json_files)} metadata files. Loading concurrently...")
+
+    results = []
+    with ThreadPoolExecutor(max_workers=config.get('io_workers', 32)) as executor:
+        future_to_file = {
+            executor.submit(process_metadata_file, str(f), db_manager, logger): f
+            for f in json_files
+        }
+        for future in as_completed(future_to_file):
+            file_path, success, error = future.result()
+            if not success:
+                logger.warning(f"Failed to load metadata for {file_path}: {error}")
+            results.append((file_path, success, error))
+
+    loaded_count = sum(1 for _, success, _ in results if success)
+    failed_count = len(results) - loaded_count
+    logger.info(f"Metadata loading complete: {loaded_count} succeeded, {failed_count} failed.")

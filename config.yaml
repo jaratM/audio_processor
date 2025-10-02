@@ -18,7 +18,7 @@ chunk_batch_size: 16             # Number of chunks per GPU batch
 max_chunk_duration: 25            # Maximum chunk duration in seconds
 chunk_duration_sec: 25            # Duration of audio chunks in seconds
 overlap_sec: 1                    # Overlap between chunks
-max_batch_size_mb: 24.0           # Maximum batch size in MB
+max_batch_size_mb: 23.0           # Maximum batch size in MB
 
 # GPU Settings
 gpu_memory_fraction: 0.9          # Use 90% of available GPU memory
@@ -39,6 +39,7 @@ logs_folder: "./logs"
 
 
 # Model Paths
+# Model Paths
 transcription_model: "./models/transcription/w2v-bert-darija-finetuned-clean"
 client_text_model_path: "./models/client/text/best_model" 
 client_acoustic_model_path : "./models/client/acoustic/svm_acoustic_model.joblib"
@@ -47,6 +48,7 @@ client_acoustic_scaler_path : "./models/client/acoustic/acoustic_scaler.joblib"
 agent_text_model_path: "./models/agent/text/best_model"
 agent_acoustic_model_path : "./models/agent/acoustic/randomforest_acoustic_model.joblib"
 agent_acoustic_scaler_path : "./models/agent/acoustic/acoustic_scaler.joblib"
+
 
 vad_model_id: "pyannote/voice-activity-detection"
 vad_device: "cpu"

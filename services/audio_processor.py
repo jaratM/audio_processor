@@ -421,28 +421,26 @@ class AudioProcessor:
                 'order_message': i + 1      
 
             }
-            self.db_manager.insert_message(row)
+            try:
+                self.db_manager.insert_message(row)
+            except Exception as e:
+                self.logger.error(f"Failed to insert message {i+1} for {id_enregistrement}: {e}")
+                # Continue with next message instead of failing the entire transcription
 
     def _save_call_to_database(self, id_enregistrement: str, waveform: torch.Tensor):
         """Save call information to database"""
         try:
-            from datetime import date
             
             # Calculate duration from waveform
             duration_seconds = waveform.shape[1] / self.target_sample_rate
             # Create call record
             call_data = {
                 'id_enregistrement': id_enregistrement,
-                'file': '',# will be updated later,
                 'duration_seconds': duration_seconds,
-                'date_appel': date.today().isoformat(),
-                'partenaire': self.config.get('partenaire', 'INWI'),
-                'login_conseiller': self.config.get('login_conseiller', 'system'),
                 'topics': '',  # Will be updated later if available
                 'emotion_client_globale': '',  # Will be updated after sentiment analysis
                 'ton_agent_global': ''  # Will be updated after sentiment analysis
             }
-            
             # Insert call record
             _ = self.db_manager.insert_call(call_data)
             

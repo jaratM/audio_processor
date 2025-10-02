@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 class TopicClassifier:
     """Handles topic classification using AWS Bedrock"""
     
-    def __init__(self,config: dict, business_type="B2C"):
+    def __init__(self, config: dict):
         """Initialize topic classifier with AWS configuration"""
         # Check AWS configuration
         if not os.getenv("AWS_ACCESS_KEY_ID") or not os.getenv("AWS_SECRET_ACCESS_KEY"):
@@ -47,16 +47,20 @@ class TopicClassifier:
             aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY")
         )
         
-        # Load topic catalogue
-        self._load_topics(business_type)
+        # Load both B2C and B2B topics once during initialization
+        self.b2c_topics = self._load_topics("B2C")
+        self.b2b_topics = self._load_topics("B2B")
         
-        # Create prompts
-        self._create_prompts()
+        # Current active topics (will be set based on business_type in infer)
+        self.topic_lines = None
+        self.topic_lookup = None
+        self.df_topics = None
+        self.classification_prompt_header = None
         
         logger.info("Topic classifier initialized successfully")
     
     def _load_topics(self, business_type="B2C"):
-        """Load topic catalogue from Excel file"""
+        """Load topic catalogue from Excel file and return as dictionary"""
         try:
             if business_type == "B2C":
                 topics_path = Path(self.config.get('topics_glossary_b2c')) 
@@ -68,7 +72,7 @@ class TopicClassifier:
             if not topics_path.exists():
                 logger.error(f"Topics glossary not found: {topics_path}")
                 self.enabled = False
-                return
+                return None
                 
             df_topics = pd.read_excel(topics_path, sheet_name="explication").fillna("")
             
@@ -82,15 +86,39 @@ class TopicClassifier:
             )
             
             # Create numbered topic lines
-            self.topic_lines = [f"{i+1}. {t}" for i, t in enumerate(df_topics["topic_str"])]
-            self.topic_lookup = dict(enumerate(df_topics["topic_str"], start=1))
-            self.df_topics = df_topics
+            topic_lines = [f"{i+1}. {t}" for i, t in enumerate(df_topics["topic_str"])]
+            topic_lookup = dict(enumerate(df_topics["topic_str"], start=1))
             
-            logger.info(f"Loaded {len(self.topic_lines)} topic categories")
+            logger.info(f"Loaded {len(topic_lines)} {business_type} topic categories")
+            
+            return {
+                'topic_lines': topic_lines,
+                'topic_lookup': topic_lookup,
+                'df_topics': df_topics
+            }
             
         except Exception as e:
-            logger.error(f"Error loading topics: {e}")
+            logger.error(f"Error loading {business_type} topics: {e}")
             self.enabled = False
+            return None
+    
+    def _set_active_topics(self, business_type: str):
+        """Set active topics based on business type"""
+        topics_data = self.b2c_topics if business_type == "B2C" else self.b2b_topics
+        
+        if topics_data is None:
+            logger.error(f"No topics loaded for {business_type}")
+            self.topic_lines = None
+            self.topic_lookup = None
+            self.df_topics = None
+            self.classification_prompt_header = None
+            return False
+            
+        self.topic_lines = topics_data['topic_lines']
+        self.topic_lookup = topics_data['topic_lookup']
+        self.df_topics = topics_data['df_topics']
+        self._create_prompts()
+        return True
     
     def _create_prompts(self):
         """Create prompts for summarization and classification"""
@@ -104,13 +132,16 @@ class TopicClassifier:
             "Transcription :\n{transcript}\n\nRésumé :"
         )
         
-        self.classification_prompt_header = (
-            "Tu es un analyste expert du service client télécom.\n"
-            "Voici la liste complète des sujets possibles, chacun identifié par un numéro :\n"
-            + "\n".join(self.topic_lines)
-            + "\n\nD'après le texte ci-dessous, réponds STRICTEMENT par le numéro du sujet "
-            + "le plus pertinent (un seul numéro, aucun autre texte).\n"
-        )
+        if self.topic_lines:
+            self.classification_prompt_header = (
+                "Tu es un analyste expert du service client télécom.\n"
+                "Voici la liste complète des sujets possibles, chacun identifié par un numéro :\n"
+                + "\n".join(self.topic_lines)
+                + "\n\nD'après le texte ci-dessous, réponds STRICTEMENT par le numéro du sujet "
+                + "le plus pertinent (un seul numéro, aucun autre texte).\n"
+            )
+        else:
+            self.classification_prompt_header = None
     
     @retry(wait=wait_exponential(min=0, max=1), stop=stop_after_attempt(5), reraise=True)
     def _invoke_model(self, model_id: str, body: dict) -> dict:
@@ -167,7 +198,7 @@ class TopicClassifier:
         Returns:
             Topic index number as string
         """
-        if not self.enabled:
+        if not self.enabled or self.classification_prompt_header is None:
             return "0"
             
         try:
@@ -201,6 +232,10 @@ class TopicClassifier:
         Returns:
             Tuple of (category, type)
         """
+        if self.df_topics is None:
+            logger.error("Topics not loaded - cannot map index to category")
+            return "UNKNOWN", "UNKNOWN"
+            
         try:
             idx = int(idx_str)
             if 1 <= idx <= len(self.df_topics):
@@ -233,12 +268,13 @@ class TopicClassifier:
         )
         return summary.strip()
     
-    def infer(self, transcription: str) -> Tuple[str, str, str]:
+    def infer(self, transcription: str, business_type: str = "B2C") -> Tuple[str, str, str]:
         """
         Complete inference pipeline: summarize and classify
         
         Args:
             transcription: Darija transcription
+            business_type: Business type ("B2C" or "B2B") to determine topic catalogue
             
         Returns:
             Tuple of (summary, category, type)
@@ -248,6 +284,11 @@ class TopicClassifier:
             return "Service non disponible", "Appel blanc", "Non classifié"
         
         try:
+            # Set active topics for the specified business type (loaded once at init)
+            if not self._set_active_topics(business_type):
+                logger.error(f"Failed to set active topics for {business_type}")
+                return "Erreur de configuration", "Appel blanc", "Non classifié"
+            
             # Summarize
             summary = self.summarize(transcription)
             summary_cleaned = self.clean_summary(summary)
@@ -256,7 +297,7 @@ class TopicClassifier:
             idx = self.classify(summary)
             category, type_specialty = self.map_index_to_category(idx)
             
-            logger.info(f"Inference complete: {category} - {type_specialty}")
+            logger.info(f"Inference complete ({business_type}): {category} - {type_specialty}")
             return summary_cleaned, category, type_specialty
             
         except Exception as e:

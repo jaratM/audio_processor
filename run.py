@@ -21,6 +21,7 @@ from services.pipeline import DataProcessor
 from services.performance_monitor import PerformanceMonitor
 from services.database_manager import DatabaseManager
 import importlib.util
+from utils.utils import load_metadata
 
 # Import minio-access module
 spec = importlib.util.spec_from_file_location("minio_access", "utils/minio-access.py")
@@ -168,6 +169,8 @@ def main():
                        help="Where to save results: 'database' (default) or 'csv'")
     parser.add_argument("--no-minio-sync", action="store_true",
                        help="Skip MinIO synchronization even if enabled in config")
+    parser.add_argument("--load-metadata", action="store_true",
+                       help="Load metadata from JSON files")
     
     args = parser.parse_args()
     
@@ -185,6 +188,8 @@ def main():
     
     # Sync data from MinIO if enabled
     sync_minio_data(config, logger, skip_sync=args.no_minio_sync)
+
+
     
     # Print system information
     print_system_info(config)
@@ -196,6 +201,9 @@ def main():
             # Initialize database manager only in database mode
             logger.info("Initializing database...")
             db_manager = DatabaseManager(config)
+            # Load metadata from JSON files
+            if args.load_metadata:
+                load_metadata(db_manager,config, logger)
             logger.info("Database initialized successfully")
         else:
             logger.info("Saving mode set to CSV. Skipping database initialization.")

@@ -26,7 +26,7 @@ class SentimentAnalyzer:
             self.device = torch.device("cpu")
         self.logger = logging.getLogger(__name__)
         self.load_models()
-        self.topic_classifier = TopicClassifier(config, business_type=config.get('business_type', 'B2C'))
+        self.topic_classifier = TopicClassifier(config)
         self.converter = DarijaFrenchConverter(config)
         # Parallel processing
         self.executor = ThreadPoolExecutor(max_workers=self.config.get('max_workers', 4))
@@ -235,7 +235,11 @@ class SentimentAnalyzer:
                 # chunk_data['transcription_chunk'] = self.converter.convert_text(chunk_data['transcription_chunk'])
                 # chunk_data['transcription_agent'] = self.converter.convert_text(chunk_data['transcription_agent'])
                 # chunk_data['transcription_client'] = self.converter.convert_text(chunk_data['transcription_client'])
-                self.db_manager.insert_chunk(chunk_data)
+                try:
+                    self.db_manager.insert_chunk(chunk_data)
+                except Exception as e:
+                    self.logger.error(f"Failed to insert chunk {chunk_data['id_chunk']} for {call_id}: {e}")
+                    # Continue with next chunk instead of failing the entire batch
             
             self.logger.info(f"Saved {len(chunks)} chunks to database")
             
@@ -402,7 +406,8 @@ class SentimentAnalyzer:
             agent_list = [it.get('agent_fusion_sentiment', '') for it in items]
             client_emotion = self.sentiment_appel_client(client_list)
             agent_ton = self.sentiment_appel_agent(agent_list)
-            topics = 'Vide' #self.sentiment_appel_topics(items)
+            business_type = self.db_manager.get_business_type(call_filename)
+            topics = self.sentiment_appel_topics(items, business_type)
             if client_emotion or agent_ton:
                 try:
                     self.db_manager.update_call_sentiment(call_filename, client_emotion, agent_ton, topics)
@@ -410,13 +415,22 @@ class SentimentAnalyzer:
                 except Exception as e:
                     self.logger.error(f"Call sentiment update failed for {call_filename}: {e}")
 
-    def sentiment_appel_topics(self, items: List[Dict]) -> str:
-        """Determine overall topics from list of chunks"""
+    def sentiment_appel_topics(self, items: List[Dict], business_type: str = "B2C") -> str:
+        """
+        Determine overall topics from list of chunks
+        
+        Args:
+            items: List of chunk dictionaries
+            business_type: Business type ("B2C" or "B2B") for topic classification
+            
+        Returns:
+            Formatted topic string
+        """
         transcription_call = ''
         for item in items:
             transcription_call += item.get('transcription_chunk', '')
 
-        _, cat, typ_cat = self.topic_classifier.infer(transcription_call)
+        _, cat, typ_cat = self.topic_classifier.infer(transcription_call, business_type)
         return f'{cat} - {typ_cat}'
     
     def pretty_sentiment(self, label: Optional[str]) -> str:
