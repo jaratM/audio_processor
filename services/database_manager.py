@@ -293,7 +293,7 @@ class DatabaseManager:
             # First ensure the call record exists
             if not self.get_call_by_id_enregistrement(id_enregistrement):
                 # Create a minimal call record if it doesn't exist
-                audio_file_path = f'{self.config.get("input_folder")}/{id_enregistrement}.wav'
+                audio_file_path = f'{self.config.get("input_folder")}/{id_enregistrement}.ogg'
                 if audio_file_path:
                     if not os.path.exists(audio_file_path):
                         self.logger.warning(f"Audio file does not exist: {audio_file_path}. Skipping metadata insertion.")

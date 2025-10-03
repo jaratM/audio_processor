@@ -181,7 +181,7 @@ class TopicClassifier:
             data = self._invoke_model(self.config.get('summary_model_id'), body)
             summary = data["content"][0]["text"].strip()
             
-            logger.info(f"Generated summary: {len(summary)} characters")
+            # logger.info(f"Generated summary: {len(summary)} characters")
             return summary
             
         except Exception as e:
@@ -215,7 +215,7 @@ class TopicClassifier:
             data = self._invoke_model(self.config.get('class_model_id'), body)
             index = data["content"][0]["text"].strip()
             
-            logger.info(f"Classified as topic index: {index}")
+            # logger.info(f"Classified as topic index: {index}")
             return index
             
         except Exception as e:
@@ -297,7 +297,7 @@ class TopicClassifier:
             idx = self.classify(summary)
             category, type_specialty = self.map_index_to_category(idx)
             
-            logger.info(f"Inference complete ({business_type}): {category} - {type_specialty}")
+            # logger.info(f"Inference complete ({business_type}): {category} - {type_specialty}")
             return summary_cleaned, category, type_specialty
             
         except Exception as e:
