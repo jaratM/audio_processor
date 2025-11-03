@@ -391,7 +391,7 @@ class AudioProcessor:
             id_enregistrement = file_path.name.split('.')[0]
             
             # Save call information to database
-            self._save_call_to_database(id_enregistrement, waveform)
+            self._save_call_to_database(id_enregistrement, waveform, sample_rate)
 
             # Clear waveform from memory
             del waveform
@@ -427,12 +427,12 @@ class AudioProcessor:
                 self.logger.error(f"Failed to insert message {i+1} for {id_enregistrement}: {e}")
                 # Continue with next message instead of failing the entire transcription
 
-    def _save_call_to_database(self, id_enregistrement: str, waveform: torch.Tensor):
+    def _save_call_to_database(self, id_enregistrement: str, waveform: torch.Tensor, sample_rate: int):
         """Save call information to database"""
         try:
             
             # Calculate duration from waveform
-            duration_seconds = waveform.shape[1] / self.target_sample_rate
+            duration_seconds = waveform.shape[1] / sample_rate
             # Create call record
             call_data = {
                 'id_enregistrement': id_enregistrement,

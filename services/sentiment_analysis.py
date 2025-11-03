@@ -1209,6 +1209,23 @@ class LateFusionSentimentAnalyzer:
                 else:
                     fusion_prediction = self.agent_id2label.get(fusion_prediction_idx, 'unknown')
                     
+                    # Apply threshold for aggressive class in agent sentiment
+                    if fusion_prediction == 'aggressive':
+                        # if the fusion confidence is less than 0.7 and the text confidence is less than 0.8, then find the second highest confidence prediction
+                        if (
+                            fusion_confidence_max < 0.7 and (text_sentiment != 'aggressive' or text_confidence < 0.8)
+                        ):
+                            # Find the second highest confidence prediction
+                            # self.logger.info(f"text_sentiment: {text_sentiment} , acoustic_sentiment: {acoustic_sentiment}")
+                            sorted_indices = np.argsort(fusion_confidence)[::-1]
+                            for idx in sorted_indices[1:]:  # Skip the first (highest) index
+                                alternative_prediction = self.agent_id2label.get(int(idx), 'unknown')
+                                if alternative_prediction != 'aggressive' and alternative_prediction != 'agressif':
+                                    fusion_prediction = alternative_prediction
+                                    fusion_prediction_idx = int(idx)
+                                    fusion_confidence_max = float(fusion_confidence[idx])
+                                    break
+                    
                 # self.logger.info(f"Late fusion prediction for {speaker}: {fusion_prediction}, confidence: {fusion_confidence_max:.4f}")
                 return {
                     'prediction': fusion_prediction,
