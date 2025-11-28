@@ -225,6 +225,9 @@ def main():
         if db_manager is not None and hasattr(processor, 'sentiment_analyzer') and processor.sentiment_analyzer:
             processor.sentiment_analyzer.set_database_manager(db_manager)
         
+        # Register queue metrics callback
+        performance_monitor.add_callback('queues', processor.get_queue_metrics)
+        
         if args.dry_run:
             # Just scan files
             logger.info("\n DRY RUN - Scanning files only")

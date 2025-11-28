@@ -27,6 +27,7 @@ import json
 from utils.utils import check_gpu_availability, get_system_stats
 from services.audio_processor import AudioProcessor
 from services.sentiment_analysis import SentimentAnalyzer
+from services.multi_gpu_manager import MultiGPUManager, get_optimal_gpu_count
 # from topics_inf import TopicClassifier
 
 class MemoryManager:
@@ -116,7 +117,16 @@ class DataProcessor:
         self.file_scanner = AudioFileScanner(self.config)
         
         self.setup_logging()
-        self.setup_models()
+        
+        # Multi-GPU setup
+        self.use_multi_gpu = self.config.get('use_multi_gpu', True) and torch.cuda.device_count() > 1
+        if self.use_multi_gpu:
+            self.gpu_manager = MultiGPUManager(self.config)
+            self.logger.info(f"Multi-GPU mode enabled: {self.gpu_manager.num_workers} GPUs")
+        else:
+            self.gpu_manager = None
+            self.setup_models()
+            self.logger.info("Single-GPU mode")
         
         # Processing queues
         self.file_queue = Queue(maxsize=100)
@@ -142,6 +152,14 @@ class DataProcessor:
         self.processed_markers_dir.mkdir(parents=True, exist_ok=True)
         # Per-run file statuses
         self._file_statuses: List[Dict[str, Any]] = []
+
+    def get_queue_metrics(self) -> Dict[str, int]:
+        """Get current queue sizes"""
+        return {
+            'file_queue': self.file_queue.qsize(),
+            'chunk_queue': self.chunk_queue.qsize(),
+            'result_queue': self.result_queue.qsize()
+        }
 
     def setup_logging(self):
         """Setup logging with rotation"""
@@ -334,6 +352,7 @@ class DataProcessor:
     def process_files_parallel(self, files: List[Path]) -> List[Dict]:
         """
         Process files in parallel with memory management.
+        Supports both single-GPU and multi-GPU modes.
         """
         self.logger.info(f"Starting parallel processing of {len(files)} files")
         self.stats.setdefault('errors', 0)
@@ -347,32 +366,35 @@ class DataProcessor:
             self.logger.info(f"Skipping {skipped} files already processed.")
         self.stats['files_skipped'] += skipped
 
-        # Create batches (assume your method returns an iterable of batches)
+        # Create batches
         file_batches = list(self.create_file_batches(filtered_files))
         total_batches = len(file_batches)
         if total_batches == 0:
             self.logger.info("No batches to process after filtering.")
             return []
 
+        # Multi-GPU or Single-GPU processing
+        if self.use_multi_gpu and self.gpu_manager:
+            self.logger.info(f"Using Multi-GPU processing with {self.gpu_manager.num_workers} GPUs")
+            all_results = self.gpu_manager.process_batches_parallel(file_batches, self)
+            return all_results
+        
+        # Single-GPU processing (original logic)
+        self.logger.info("Using Single-GPU processing")
         max_workers = self.config.get('max_workers', 32)
-        # self.logger.info(f"Using max_workers={max_workers}")
-
-        # Windowed submission to avoid huge pending queues
-        MAX_IN_FLIGHT = max(4, max_workers)  # tune as needed
-        MAX_ERRORS = 10                           # stop early if things are going south
+        MAX_IN_FLIGHT = max(4, max_workers)
+        MAX_ERRORS = 10
 
         all_results = 0
         in_flight = set()
 
         def submit_batch(executor, batch_id, batch):
-            # Wait for memory before creating work
             self.memory_manager.wait_for_memory()
             fut = executor.submit(self.process_file_batch, batch_id, batch)
-            fut.batch_id = batch_id  # attach context for logging
+            fut.batch_id = batch_id
             in_flight.add(fut)
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # Prime the window
             next_idx = 0
             while next_idx < min(MAX_IN_FLIGHT, total_batches):
                 submit_batch(executor, next_idx, file_batches[next_idx])
@@ -384,14 +406,12 @@ class DataProcessor:
                     in_flight.remove(fut)
                     bid = getattr(fut, "batch_id", "?")
                     try:
-                        # Per-batch timeout (5 minutes)
                         batch_results = fut.result(timeout=300)
                         all_results += batch_results                            
                     except TimeoutError:
                         self.logger.error(f"Batch {bid} timed out after 300s")
                         self.stats['errors'] += 1
                     except Exception as e:
-                        # Exception with traceback
                         self.logger.exception(f"Batch {bid} failed: {e}")
                         self.stats['errors'] += 1
 
@@ -399,16 +419,13 @@ class DataProcessor:
                     if completed % max(1, total_batches // 10) == 0:
                         self.logger.info(f"Progress: {completed}/{total_batches} batches done")
 
-                    # Early abort if too many errors
                     if self.stats['errors'] >= MAX_ERRORS:
-                        self.logger.error(f"Aborting after {self.stats['errors']} errors; "
-                                        f"cancelling {len(in_flight)} pending batches")
+                        self.logger.error(f"Aborting after {self.stats['errors']} errors")
                         for pending in in_flight:
                             pending.cancel()
                         in_flight.clear()
                         break
 
-                    # Keep the window full
                     if next_idx < total_batches and len(in_flight) < MAX_IN_FLIGHT:
                         submit_batch(executor, next_idx, file_batches[next_idx])
                         next_idx += 1
@@ -716,7 +733,7 @@ class DataProcessor:
         
         # Process files
         total_files_success = self.process_files_parallel(files)
-        self.log_results()
+        # self.log_results()
         self.logger.info("Optimized audio processing completed successfully with %s files success" % total_files_success)
 
 def main():

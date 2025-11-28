@@ -6,6 +6,10 @@ io_workers: 32                     # I/O worker threads for file operations
 gpu_workers: 1                     # GPU workers (keep at 1 to avoid conflicts)
 gpu_index: 0                       # GPU index to use
 
+# Multi-GPU Settings
+use_multi_gpu: true                # Enable multi-GPU processing (auto-detects 1-4 GPUs)
+max_gpus: 4                        # Maximum number of GPUs to use
+
 # Memory Management
 max_memory_gb: 500.0               # Maximum memory usage in GB
 chunk_cache_size: 1000            # Number of chunks to cache
@@ -38,7 +42,6 @@ failed_folder: "./failed"
 logs_folder: "./logs"
 
 
-# Model Paths
 # Model Paths
 transcription_model: "./models/transcription/w2v-bert-darija-finetuned-clean"
 client_text_model_path: "./models/client/text/best_model" 
@@ -123,7 +126,7 @@ darija_numbers_dict: "./utils/darija_numbers.xlsx"
 
 minio:
   endpoint: "your_endpoint"       # MinIO endpoint
-  enabled: true                           # Set to true to enable MinIO sync
+  enabled: false                           # Set to true to enable MinIO sync
   bucket_name: "your_bucket_name"              # Bucket name
   folder_prefix: "input"           # Folder prefix in MinIO
   secure: true     

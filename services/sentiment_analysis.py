@@ -430,8 +430,9 @@ class SentimentAnalyzer:
         for item in items:
             transcription_call += item.get('transcription_chunk', '')
 
-        _, cat, typ_cat = self.topic_classifier.infer(transcription_call, business_type)
-        return f'{cat} - {typ_cat}'
+        # _, cat, typ_cat = self.topic_classifier.infer(transcription_call, business_type)
+        # return f'{cat} - {typ_cat}'
+        return ''
     
     def pretty_sentiment(self, label: Optional[str]) -> str:
         """Convert sentiment label to display format"""

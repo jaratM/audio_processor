@@ -6,7 +6,8 @@ import time
 import psutil
 import torch
 import logging
-from typing import Dict, List, Optional, Tuple
+import subprocess
+from typing import Dict, List, Optional, Tuple, Callable, Any
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 import threading
@@ -49,6 +50,8 @@ class PerformanceMonitor:
         self.batch_metrics = deque(maxlen=100)
         self.memory_history = deque(maxlen=1000)
         self.gpu_memory_history = deque(maxlen=1000)
+        self.per_gpu_memory_history = defaultdict(lambda: deque(maxlen=1000))  # Per-GPU tracking
+        self.custom_metrics_history = defaultdict(lambda: deque(maxlen=1000))
         
         # Threading
         self.monitoring_thread = None
@@ -58,6 +61,11 @@ class PerformanceMonitor:
         self.file_times = defaultdict(list)
         self.chunk_times = defaultdict(list)
         self.bottlenecks = defaultdict(int)
+        self.callbacks: Dict[str, Callable[[], Any]] = {}
+        
+    def add_callback(self, name: str, func: Callable[[], Any]):
+        """Add a callback to collect custom metrics"""
+        self.callbacks[name] = func
         
     def start_monitoring(self):
         """Start background monitoring"""
@@ -74,35 +82,97 @@ class PerformanceMonitor:
             self.monitoring_thread.join(timeout=5)
         self.logger.info("Performance monitoring stopped")
     
+    def _get_gpu_memory_nvidia_smi(self) -> Dict[int, float]:
+        """Get GPU memory usage using nvidia-smi (works across processes)"""
+        try:
+            # query format: index, memory.used [MiB]
+            # Use nounits to avoid parsing "MiB"
+            result = subprocess.check_output(
+                ['nvidia-smi', '--query-gpu=index,memory.used', '--format=csv,nounits,noheader'],
+                encoding='utf-8'
+            )
+            gpu_memory = {}
+            for line in result.strip().split('\n'):
+                if line:
+                    parts = line.split(',')
+                    if len(parts) >= 2:
+                        idx = int(parts[0].strip())
+                        used_mb = float(parts[1].strip())
+                        # Convert MiB to GB
+                        gpu_memory[idx] = used_mb / 1024
+            return gpu_memory
+        except Exception as e:
+            # Don't log every second if it fails, just debug
+            # self.logger.debug(f"nvidia-smi failed: {e}") 
+            return {}
+
     def _monitor_resources(self):
         """Background thread to monitor system resources"""
         while not self._stop_monitoring.is_set():
             try:
+                timestamp = datetime.now()
+                
                 # Monitor memory
                 memory = psutil.virtual_memory()
                 self.memory_history.append({
-                    'timestamp': datetime.now(),
+                    'timestamp': timestamp,
                     'used_gb': memory.used / (1024**3),
                     'percent': memory.percent
                 })
                 
                 # Monitor GPU memory
-                if torch.cuda.is_available():
-                    gpu_memory = torch.cuda.memory_allocated(0) / (1024**3)
-                    self.gpu_memory_history.append({
-                        'timestamp': datetime.now(),
-                        'used_gb': gpu_memory
-                    })
+                max_gpu_memory = 0.0
+                gpu_memory_map = {}
                 
+                # Try nvidia-smi first (works for multi-process)
+                gpu_memory_map = self._get_gpu_memory_nvidia_smi()
+                
+                # Fallback to torch if nvidia-smi failed/empty but torch is available
+                if not gpu_memory_map and torch.cuda.is_available():
+                    try:
+                        gpu_count = torch.cuda.device_count()
+                        for i in range(gpu_count):
+                            gpu_memory_map[i] = torch.cuda.memory_allocated(i) / (1024**3)
+                    except Exception:
+                        pass
+
+                if gpu_memory_map:
+                    gpu_index = self.config.get('gpu_index')
+                    
+                    for gpu_id, memory_gb in gpu_memory_map.items():
+                        # If specific GPU is requested, only track that one
+                        if gpu_index is not None and gpu_id != gpu_index:
+                            continue
+                            
+                        max_gpu_memory = max(max_gpu_memory, memory_gb)
+                        self.per_gpu_memory_history[gpu_id].append({
+                            'timestamp': timestamp,
+                            'used_gb': memory_gb
+                        })
+                    
+                    self.gpu_memory_history.append({
+                        'timestamp': timestamp,
+                        'used_gb': max_gpu_memory
+                    })
+
+                # Collect custom metrics from callbacks
+                for name, func in self.callbacks.items():
+                    try:
+                        val = func()
+                        self.custom_metrics_history[name].append({
+                            'timestamp': timestamp,
+                            'value': val
+                        })
+                    except Exception as e:
+                        self.logger.error(f"Error in callback {name}: {e}")
+
                 # Update peak values
                 current_memory_gb = memory.used / (1024**3)
                 if current_memory_gb > self.metrics.memory_peak_gb:
                     self.metrics.memory_peak_gb = current_memory_gb
                 
-                if torch.cuda.is_available():
-                    current_gpu_gb = torch.cuda.memory_allocated(0) / (1024**3)
-                    if current_gpu_gb > self.metrics.gpu_memory_peak_gb:
-                        self.metrics.gpu_memory_peak_gb = current_gpu_gb
+                if max_gpu_memory > self.metrics.gpu_memory_peak_gb:
+                    self.metrics.gpu_memory_peak_gb = max_gpu_memory
                 
                 time.sleep(1)  # Monitor every second
                 
@@ -149,13 +219,25 @@ class PerformanceMonitor:
     
     def _get_system_info(self) -> Dict:
         """Get system information"""
-        return {
+        info = {
             'cpu_count': psutil.cpu_count(),
             'memory_total_gb': psutil.virtual_memory().total / (1024**3),
             'gpu_available': torch.cuda.is_available(),
             'gpu_count': torch.cuda.device_count() if torch.cuda.is_available() else 0,
             'gpu_name': torch.cuda.get_device_name(0) if torch.cuda.is_available() else None
         }
+        
+        # Add per-GPU peak memory if available
+        if self.per_gpu_memory_history:
+            per_gpu_peaks = {}
+            for gpu_id, history in self.per_gpu_memory_history.items():
+                if history:
+                    peak = max(entry['used_gb'] for entry in history)
+                    per_gpu_peaks[f'gpu_{gpu_id}_peak_gb'] = peak
+            if per_gpu_peaks:
+                info['per_gpu_memory_peaks'] = per_gpu_peaks
+        
+        return info
     
     def save_performance_report(self, output_path: str):
         """Save detailed performance report"""
@@ -167,6 +249,14 @@ class PerformanceMonitor:
             'batch_metrics': list(self.batch_metrics),
             'memory_history': list(self.memory_history),
             'gpu_memory_history': list(self.gpu_memory_history),
+            'per_gpu_memory_history': {
+                f'gpu_{gpu_id}': list(history) 
+                for gpu_id, history in self.per_gpu_memory_history.items()
+            },
+            'custom_metrics': {
+                name: list(history)
+                for name, history in self.custom_metrics_history.items()
+            },
             'file_times': dict(self.file_times),
             'bottlenecks': dict(self.bottlenecks)
         }
@@ -238,4 +328,36 @@ class PerformanceMonitor:
         elif throughput < target_throughput * 0.8:
             recommendations.append("Throughput is below target. Consider optimization.")
         
-        return recommendations 
+        return recommendations
+    
+    def get_current_gpu_memory(self) -> Dict[int, float]:
+        """Get current GPU memory usage for all GPUs in GB"""
+        # Try nvidia-smi first
+        gpu_memory = self._get_gpu_memory_nvidia_smi()
+        if gpu_memory:
+            return gpu_memory
+            
+        # Fallback to torch
+        gpu_memory = {}
+        if torch.cuda.is_available():
+            gpu_count = torch.cuda.device_count()
+            for gpu_id in range(gpu_count):
+                try:
+                    memory_gb = torch.cuda.memory_allocated(gpu_id) / (1024**3)
+                    gpu_memory[gpu_id] = memory_gb
+                except Exception as e:
+                    self.logger.debug(f"Failed to get memory for GPU {gpu_id}: {e}")
+                    gpu_memory[gpu_id] = 0.0
+        return gpu_memory
+    
+    def log_gpu_memory_status(self):
+        """Log current GPU memory status for all GPUs"""
+        gpu_memory = self.get_current_gpu_memory()
+        if gpu_memory:
+            for gpu_id, memory_gb in gpu_memory.items():
+                self.logger.info(f"GPU {gpu_id} memory: {memory_gb:.2f} GB")
+        else:
+            if torch.cuda.is_available():
+                 self.logger.info("Could not retrieve GPU memory usage")
+            else:
+                self.logger.info("No CUDA GPUs available")
