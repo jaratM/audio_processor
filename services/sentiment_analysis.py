@@ -429,7 +429,7 @@ class SentimentAnalyzer:
         transcription_call = ''
         for item in items:
             transcription_call += item.get('transcription_chunk', '')
-
+        # TODO: Uncomment this when the topic classifier is ready
         # _, cat, typ_cat = self.topic_classifier.infer(transcription_call, business_type)
         # return f'{cat} - {typ_cat}'
         return ''

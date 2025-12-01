@@ -3,8 +3,8 @@
 # Parallel Processing Settings
 max_workers: 16                    # Maximum number of worker threads
 io_workers: 32                     # I/O worker threads for file operations
-gpu_workers: 1                     # GPU workers (keep at 1 to avoid conflicts)
-gpu_index: 0                       # GPU index to use
+gpu_workers: 1                    # GPU workers (increased for DataParallel)
+gpu_index: 0                       # Primary GPU index to use
 
 # Multi-GPU Settings
 use_multi_gpu: true                # Enable multi-GPU processing (auto-detects 1-4 GPUs)
@@ -42,7 +42,7 @@ failed_folder: "./failed"
 logs_folder: "./logs"
 
 
-# Model Paths
+#  Model Paths
 transcription_model: "./models/transcription/w2v-bert-darija-finetuned-clean"
 client_text_model_path: "./models/client/text/best_model" 
 client_acoustic_model_path : "./models/client/acoustic/svm_acoustic_model.joblib"

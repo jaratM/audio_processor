@@ -1,8 +1,9 @@
 pandas==2.2.2
 numpy==1.26.4
-torch==2.5.1
-torchaudio==2.5.1
-transformers==4.43.3
+torch==2.6.0
+torchaudio==2.6.0
+# torchvision>=0.21.0,<0.23.0
+transformers==4.48.0
 pyannote.audio==3.3.2
 boto3==1.39.4
 python-dotenv==1.0.1
@@ -15,5 +16,8 @@ psycopg2-binary==2.9.10
 uuid==1.30
 openpyxl==3.1.5
 minio==7.2.16
+setuptools==78.1.1
+jinja2==3.1.5
+accelerate>=0.30.0
 
 
