@@ -27,7 +27,7 @@ class SentimentAnalyzer:
         self.logger = logging.getLogger(__name__)
         self.load_models()
         self.topic_classifier = TopicClassifier(config)
-        self.converter = DarijaFrenchConverter(config)
+        # self.converter = DarijaFrenchConverter(config)
         # Parallel processing
         self.executor = ThreadPoolExecutor(max_workers=self.config.get('max_workers', 4))
         
@@ -953,17 +953,26 @@ class TextSentimentAnalyzer:
                     self.client_text_model.config.id2label = config.get("id2label", {})
                     self.client_text_model.config.label2id = config.get("label2id", {})
                     self.client_text_model.config.id2label = {int(k): v for k, v in self.client_text_model.config.id2label.items()}
-                    self.client_text_tokenizer = AutoTokenizer.from_pretrained(base_model_name)
+                    # Try loading tokenizer from local model dir first, then fall back to hub name
+                    try:
+                        self.client_text_tokenizer = AutoTokenizer.from_pretrained(self.client_text_model_path)
+                        self.logger.info("Client tokenizer loaded from local model directory")
+                    except Exception:
+                        self.client_text_tokenizer = AutoTokenizer.from_pretrained(base_model_name)
                     self.logger.info(f"Client text model config loaded successfully")
             except Exception as e:
                 self.logger.error(f"Error loading text model config client: {e}")
-                # Fallback: try to load tokenizer with default model name
+                # Fallback: try to load tokenizer from local path, then hub
                 try:
-                    self.client_text_tokenizer = AutoTokenizer.from_pretrained("SI2M-Lab/DarijaBERT")
-                    self.logger.info("Using fallback tokenizer for client text model")
-                except Exception as fallback_e:
-                    self.logger.error(f"Failed to load fallback tokenizer: {fallback_e}")
-                    raise
+                    self.client_text_tokenizer = AutoTokenizer.from_pretrained(self.client_text_model_path)
+                    self.logger.info("Using fallback tokenizer from local client model directory")
+                except Exception:
+                    try:
+                        self.client_text_tokenizer = AutoTokenizer.from_pretrained("SI2M-Lab/DarijaBERT")
+                        self.logger.info("Using fallback tokenizer from HuggingFace Hub")
+                    except Exception as fallback_e:
+                        self.logger.error(f"Failed to load fallback tokenizer: {fallback_e}")
+                        raise
 
             self.client_text_model.to(self.device)
             self.client_text_model.eval()
@@ -978,17 +987,26 @@ class TextSentimentAnalyzer:
                     self.agent_text_model.config.id2label = config.get("id2label", {})
                     self.agent_text_model.config.label2id = config.get("label2id", {})
                     self.agent_text_model.config.id2label = {int(k): v for k, v in self.agent_text_model.config.id2label.items()}
-                    self.agent_text_tokenizer = AutoTokenizer.from_pretrained(base_model_name)
+                    # Try loading tokenizer from local model dir first, then fall back to hub name
+                    try:
+                        self.agent_text_tokenizer = AutoTokenizer.from_pretrained(self.agent_text_model_path)
+                        self.logger.info("Agent tokenizer loaded from local model directory")
+                    except Exception:
+                        self.agent_text_tokenizer = AutoTokenizer.from_pretrained(base_model_name)
                     self.logger.info(f"Agent text model config loaded successfully")
             except Exception as e:
                 self.logger.error(f"Error loading text model config agent: {e}")
-                # Fallback: try to load tokenizer with default model name
+                # Fallback: try to load tokenizer from local path, then hub
                 try:
-                    self.agent_text_tokenizer = AutoTokenizer.from_pretrained("SI2M-Lab/DarijaBERT")
-                    self.logger.info("Using fallback tokenizer for agent text model")
-                except Exception as fallback_e:
-                    self.logger.error(f"Failed to load fallback tokenizer: {fallback_e}")
-                    raise
+                    self.agent_text_tokenizer = AutoTokenizer.from_pretrained(self.agent_text_model_path)
+                    self.logger.info("Using fallback tokenizer from local agent model directory")
+                except Exception:
+                    try:
+                        self.agent_text_tokenizer = AutoTokenizer.from_pretrained("SI2M-Lab/DarijaBERT")
+                        self.logger.info("Using fallback tokenizer from HuggingFace Hub")
+                    except Exception as fallback_e:
+                        self.logger.error(f"Failed to load fallback tokenizer: {fallback_e}")
+                        raise
 
             self.agent_text_model.to(self.device)
             self.agent_text_model.eval()
